@@ -14,8 +14,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
+      # ubuntu-latest ships the Android SDK and sets ANDROID_HOME.
       - name: Engine tests
         run: ./gradlew :engine:test --no-daemon
       - name: Build APK
