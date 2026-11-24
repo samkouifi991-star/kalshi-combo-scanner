@@ -77,6 +77,15 @@ fun SettingsScreen(vm: MainViewModel) {
         Text("Kalshi allows 100 open RFQs at once. The app closes each RFQ after reading it.", style = MaterialTheme.typography.labelSmall)
         Text("Stakes tested: " + s.toScanSettings().stakesToTest().joinToString { Fmt.money(it).removeSuffix(".00") }, style = MaterialTheme.typography.labelSmall)
 
+        Section("Long tab")
+        Stepper("Lowest leg price", "${s.longMinAskCents}¢", { set { it.copy(longMinAskCents = (it.longMinAskCents - 1).coerceAtLeast(80)) } }, { set { it.copy(longMinAskCents = (it.longMinAskCents + 1).coerceAtMost(99)) } })
+        Stepper("Fewest legs", "${s.longMinLegs}", { set { it.copy(longMinLegs = (it.longMinLegs - 10).coerceAtLeast(20)) } }, { set { it.copy(longMinLegs = (it.longMinLegs + 10).coerceAtMost(it.longMaxLegs)) } })
+        Stepper("Most legs", "${s.longMaxLegs}", { set { it.copy(longMaxLegs = (it.longMaxLegs - 10).coerceAtLeast(it.longMinLegs)) } }, { set { it.copy(longMaxLegs = it.longMaxLegs + 10) } })
+        Stepper("Minimum leg edge", Fmt.pp(s.longMinEdgePp), { set { it.copy(longMinEdgePp = it.longMinEdgePp - 0.5) } }, { set { it.copy(longMinEdgePp = it.longMinEdgePp + 0.5) } })
+        if (s.longMinEdgePp < 0) Text("Legs with negative estimated edge make the whole combo worse.", style = MaterialTheme.typography.labelSmall, color = Warning)
+        Stepper("Quote budget per long scan", "${s.longQuoteBudget}", { set { it.copy(longQuoteBudget = (it.longQuoteBudget - 2).coerceAtLeast(4)) } }, { set { it.copy(longQuoteBudget = (it.longQuoteBudget + 2).coerceAtMost(40)) } })
+        Text("Kalshi caps how many legs a combo can hold; the app uses each collection's limit.", style = MaterialTheme.typography.labelSmall)
+
         Section("Alerts")
         Toggle("Alert me about newly verified opportunities", s.alertsEnabled) { v ->
             if (v && Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)

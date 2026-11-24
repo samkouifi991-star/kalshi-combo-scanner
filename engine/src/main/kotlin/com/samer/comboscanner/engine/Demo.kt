@@ -59,10 +59,45 @@ object Demo {
             delay(250)
             val ref = legsInOrder.fold(1.0) { a, l -> a * l.askCents / 100.0 } * 100
             // Makers sometimes improve on the individual prices; wobble a little so rechecks are realistic.
-            val price = (ref * (0.93 + Random.nextDouble(0.0, 0.05))).coerceIn(1.0, 99.0).let { kotlin.math.round(it) }
+            val price = (ref * (0.93 + Random.nextDouble(0.0, 0.05))).coerceIn(0.01, 99.0).let { kotlin.math.round(it * 100) / 100 }
             return QuoteOutcome.Quoted(
                 QuoteMath.recordFor(UUID.randomUUID().toString(), comboKey, legsInOrder.map { it.id }, "DEMO-COMBO", stakeCents, price, fees, clock(), source, purpose),
             )
         }
+    }
+}
+
+/** Demo heavy-favourite player props for the Long tab. */
+object DemoLong {
+    private val players = listOf(
+        "Julius Randle", "Jaden McDaniels", "LaMelo Ball", "Jonathan Kuminga", "Ayo Dosunmu", "Michael Porter Jr.",
+        "Stefon Diggs", "Austin Ekeler", "Jayden Daniels", "Rachaad White", "Treylon Burks", "Ja'Marr Chase",
+    )
+    private val props = listOf("5+ threes", "8+ assists", "15+ rebounds", "3+ touchdowns", "2+ touchdowns", "40+ points")
+
+    fun markets(clock: () -> EpochMs = System::currentTimeMillis) = object : MarketSource {
+        override suspend fun eligibleLegs(sports: Set<String>): List<Leg> {
+            val now = clock()
+            val rnd = Random(7)
+            return (0 until 200).map { i ->
+                val p = players[i % players.size]
+                val prop = props[(i / players.size) % props.size]
+                val sport = if (prop.contains("touchdown")) "NFL" else "NBA"
+                Leg("DEMOL-M$i", "DEMOL-E${i % 14}", "DEMOL", Demo.COLLECTION, Side.NO, "Game ${i % 14 + 1}",
+                    "No · $p: $prop #${i / (players.size * props.size) + 1}", sport, now + (4 + i % 10) * 3_600_000L,
+                    94 + rnd.nextInt(0, 6), 500, now - 20_000)
+            }.filter { sports.isEmpty() || it.sport in sports }
+        }
+    }
+
+    fun fair() = object : FairEstimator {
+        override suspend fun estimate(legs: List<Leg>): Map<String, FairEstimate> {
+            val rnd = Random(11)
+            return legs.associate { l ->
+                val p = (l.askCents / 100.0 + rnd.nextDouble(-0.008, 0.02)).coerceIn(0.5, 0.995)
+                l.id to FairProbability.blend(listOf(Evidence(EvidenceKind.HISTORICAL, "Settled history (demo)", p, 0.01, clock(), "demo")))!!
+            }
+        }
+        private fun clock() = System.currentTimeMillis()
     }
 }

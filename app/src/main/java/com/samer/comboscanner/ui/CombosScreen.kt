@@ -123,7 +123,8 @@ fun ComboCard(vm: MainViewModel, c: ComboResult, freshSeconds: Int, onOpen: (() 
             }
             Spacer(Modifier.height(10.dp))
             val order = best?.entryOrder ?: c.candidate.legs.map { it.leg.id }
-            order.forEachIndexed { i, id ->
+            val visible = if (order.size > 8) order.take(6) else order
+            visible.forEachIndexed { i, id ->
                 val l = c.candidate.legs.first { it.leg.id == id }
                 Text(
                     "${i + 1}. ${l.leg.matchup} · ${l.leg.outcome}",
@@ -133,6 +134,9 @@ fun ComboCard(vm: MainViewModel, c: ComboResult, freshSeconds: Int, onOpen: (() 
                     "   ${l.leg.sport} · ask ${Fmt.cents(l.leg.askCents)} · fair ${Fmt.pct(l.fair.probability, 1)}",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (order.size > visible.size) {
+                Text("…and ${order.size - visible.size} more picks (open the combo to see all)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
             if (best != null) {
                 Spacer(Modifier.height(12.dp))

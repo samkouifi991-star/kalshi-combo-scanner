@@ -23,7 +23,8 @@ data class QuoteRecord(
     val comboMarketTicker: String? = null,
     val stakeCents: Int,
     val payoutCents: Int,
-    val contracts: Int,
+    /** Can be fractional: combo RFQs size in 0.01 contract steps. */
+    val contracts: Double,
     /** Price per contract in cents, before fees. */
     val priceCents: Double,
     val feeCents: Int,
@@ -75,13 +76,13 @@ object QuoteMath {
         purpose: QuotePurpose,
         rfqId: String? = null,
         quoteId: String? = null,
-        contractsOverride: Int? = null,
+        contractsOverride: Double? = null,
     ): QuoteRecord {
-        val contracts = contractsOverride ?: fees.contractsForStake(stakeCents, priceCents)
+        val contracts = contractsOverride ?: fees.contractsForStake(stakeCents, priceCents).toDouble()
         val fee = fees.feeCents(contracts, priceCents)
         return QuoteRecord(
             id = id, comboKey = comboKey, entryOrder = entryOrder, comboMarketTicker = comboMarketTicker,
-            stakeCents = stakeCents, payoutCents = contracts * 100, contracts = contracts, priceCents = priceCents,
+            stakeCents = stakeCents, payoutCents = kotlin.math.round(contracts * 100).toInt(), contracts = contracts, priceCents = priceCents,
             feeCents = fee, costCents = (contracts * priceCents).let { kotlin.math.ceil(it - 1e-9).toInt() } + fee, timestamp = timestamp, source = source, purpose = purpose, rfqId = rfqId, quoteId = quoteId,
         )
     }

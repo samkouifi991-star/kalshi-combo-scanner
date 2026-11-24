@@ -9,7 +9,10 @@ import kotlin.math.floor
  */
 data class FeeModel(val takerRate: Double = 0.07) {
     /** Total fee in cents for [contracts] at [priceCents]. */
-    fun feeCents(contracts: Int, priceCents: Double): Int {
+    fun feeCents(contracts: Int, priceCents: Double): Int = feeCents(contracts.toDouble(), priceCents)
+
+    /** Combo RFQs can fill fractional contracts (0.01 steps), so fees are defined on a Double count too. */
+    fun feeCents(contracts: Double, priceCents: Double): Int {
         if (contracts <= 0) return 0
         val p = priceCents / 100.0
         val dollars = takerRate * contracts * p * (1 - p)

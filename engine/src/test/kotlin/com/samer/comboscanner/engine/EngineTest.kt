@@ -104,7 +104,7 @@ class LegAndComboTest {
         // Four independent legs whose prices imply 1.60x; RFQ offers 1.85x → +15.6%.
         val c = ComboCandidate((1..4).map { LegScorer.score(leg("$it", 89), fair(0.95), fees) })
         val ref = c.referenceMultiplier!!
-        val q = QuoteRecord("q", c.key, emptyList(), null, 1000, (ref * 1000 * 1.85 / 1.60).toInt(), 0, 0.0, 0, 0, NOW, QuoteSource.API_RFQ, QuotePurpose.GROUPING)
+        val q = QuoteRecord("q", c.key, emptyList(), null, 1000, (ref * 1000 * 1.85 / 1.60).toInt(), 0.0, 0.0, 0, 0, NOW, QuoteSource.API_RFQ, QuotePurpose.GROUPING)
         val r = ComboResult(c, listOf(q))
         assertEquals(1.85 / 1.60 - 1, r.comboImprovement(q)!!, 0.002)
     }
@@ -125,7 +125,7 @@ class LegAndComboTest {
 
     @Test fun bestStakeIsHighestMultiplier() {
         val c = ComboCandidate((1..4).map { LegScorer.score(leg("$it", 90), fair(0.95), fees) })
-        fun q(stake: Int, payout: Int) = QuoteRecord("$stake", c.key, listOf("x"), null, stake, payout, payout / 100, 0.0, 0, 0, NOW, QuoteSource.API_RFQ, QuotePurpose.STAKE_SWEEP)
+        fun q(stake: Int, payout: Int) = QuoteRecord("$stake", c.key, listOf("x"), null, stake, payout, payout / 100.0, 0.0, 0, 0, NOW, QuoteSource.API_RFQ, QuotePurpose.STAKE_SWEEP)
         val r = ComboResult(c, listOf(q(500, 1000), q(1000, 1300)))
         assertEquals(500, r.best!!.stakeCents)
         assertEquals(2.0, r.best!!.multiplier, 1e-9)

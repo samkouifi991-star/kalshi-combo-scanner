@@ -20,6 +20,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val status = repo.status
     val scan = repo.scan
     val tickets = repo.tickets
+    val longScan = repo.longScan
+    val longStatus = repo.longStatus
     val activity = repo.activity
     val warnings = repo.warnings
 
@@ -32,6 +34,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun clearMessage() { _message.value = null }
 
     fun scanNow() = repo.scanInBackground()
+    fun scanLongNow() = repo.scanLongInBackground()
 
     fun updateSettings(f: (AppSettings) -> AppSettings) {
         repo.updateSettings(f)

@@ -56,11 +56,12 @@ import com.samer.comboscanner.engine.QuoteRecord
 @Composable
 fun ComboDetailScreen(vm: MainViewModel, comboKey: String, refreshOnOpen: Boolean, onOpenTicket: (String) -> Unit) {
     val scan by vm.scan.collectAsState()
+    val longScan by vm.longScan.collectAsState()
     val settings by vm.settings.collectAsState()
     val now = LocalNow.current
     var trading by remember { mutableStateOf(false) }
     var manualEntry by remember { mutableStateOf(false) }
-    val c = scan?.combos?.firstOrNull { it.candidate.key == comboKey }
+    val c = (scan?.combos.orEmpty() + longScan?.combos.orEmpty()).firstOrNull { it.candidate.key == comboKey }
     if (c == null) { EmptyState("Combo not in the latest scan", "Scan again to find current combos."); return }
     val best = c.best
 
@@ -72,7 +73,7 @@ fun ComboDetailScreen(vm: MainViewModel, comboKey: String, refreshOnOpen: Boolea
     LazyColumn(Modifier.fillMaxSize()) {
         item { ComboCard(vm, c, settings.quoteFreshSeconds, onOpen = null, onTrade = { trading = true }) }
         item {
-            ExpandableSection("Legs and entry order", initiallyOpen = true) {
+            ExpandableSection("Legs and entry order (${c.candidate.size})", initiallyOpen = c.candidate.size <= 10) {
                 val order = best?.entryOrder ?: c.candidate.legs.map { it.leg.id }
                 order.forEachIndexed { i, id ->
                     val l = c.candidate.legs.first { it.leg.id == id }
@@ -165,6 +166,7 @@ private fun EdgeBreakdown(c: ComboResult, best: QuoteRecord?) {
     val cand = c.candidate
     KeyRow("Estimated joint win probability", "${Fmt.pct(cand.jointFair, 1)} (${Fmt.pct(cand.jointLow, 1)}–${Fmt.pct(cand.jointHigh, 1)})")
     KeyRow("Estimated fair multiplier", Fmt.mult(cand.fairMultiplier))
+    if (best != null && cand.size > 10) LongMathRows(c, best)
     val ref = cand.referenceMultiplier
     if (ref != null) {
         KeyRow("Reference multiplier from individual Kalshi prices", Fmt.mult(ref))
@@ -222,7 +224,8 @@ fun ManualQuoteDialog(defaultStake: Int, title: String = "Quote from the Kalshi 
 fun TradeSheet(vm: MainViewModel, comboKey: String, onDismiss: () -> Unit, stakeOverride: Int? = null) {
     val context = LocalContext.current
     val scan by vm.scan.collectAsState()
-    val c = scan?.combos?.firstOrNull { it.candidate.key == comboKey } ?: return
+    val longScan by vm.longScan.collectAsState()
+    val c = (scan?.combos.orEmpty() + longScan?.combos.orEmpty()).firstOrNull { it.candidate.key == comboKey } ?: return
     val original = remember(comboKey) { c.best } ?: return
     val stake = stakeOverride ?: original.stakeCents
     var recheck by remember { mutableStateOf<Recheck?>(null) }
