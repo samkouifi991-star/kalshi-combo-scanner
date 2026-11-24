@@ -78,7 +78,7 @@ class KalshiRfqQuoteProvider(
         }
         try {
             val deadline = clock() + waitMs
-            var best: Pair<String, Double>? = null
+            var best: BestQuote? = null
             while (clock() < deadline) {
                 delay(pollMs)
                 best = bestYesPrice(rfqId) ?: continue
@@ -87,12 +87,14 @@ class KalshiRfqQuoteProvider(
                 best = bestYesPrice(rfqId) ?: best
                 break
             }
-            val (quoteId, priceCents) = best ?: return QuoteOutcome.NoQuote("No maker quoted within ${waitMs / 1000}s")
+            val (quoteId, priceCents, contracts) = best ?: return QuoteOutcome.NoQuote("No maker quoted within ${waitMs / 1000}s")
             return QuoteOutcome.Quoted(
                 QuoteMath.recordFor(
                     id = UUID.randomUUID().toString(), comboKey = comboKey, entryOrder = legsInOrder.map { it.id },
                     comboMarketTicker = ticker, stakeCents = stakeCents, priceCents = priceCents, fees = fees,
                     timestamp = clock(), source = source, purpose = purpose, rfqId = rfqId, quoteId = quoteId,
+                    // Kalshi sizes target-cost RFQs itself (fractional for combos); use its count when it gives one.
+                    contractsOverride = contracts,
                 ),
             )
         } finally {
@@ -126,12 +128,15 @@ class KalshiRfqQuoteProvider(
      * Best price for us to buy YES on the combo, in cents. A maker's no_bid is what they pay for NO,
      * so they are selling YES at 1 − no_bid.
      */
-    private suspend fun bestYesPrice(rfqId: String): Pair<String, Double>? {
+    data class BestQuote(val quoteId: String, val yesPriceCents: Double, val contracts: Double?)
+
+    private suspend fun bestYesPrice(rfqId: String): BestQuote? {
         val resp = client.get("/communications/quotes", mapOf("rfq_id" to rfqId, "status" to "open", "limit" to "100"))
         return resp.arr("quotes").mapNotNull { q ->
             val noBid = q.cents("no_bid") ?: return@mapNotNull null
             if (noBid <= 0) return@mapNotNull null
-            (q.str("id") ?: return@mapNotNull null) to (100.0 - noBid)
-        }.minByOrNull { it.second }
+            val contracts = (q.dbl("no_contracts_fp") ?: q.dbl("contracts_fp"))?.takeIf { it > 0 }
+            BestQuote(q.str("id") ?: return@mapNotNull null, 100.0 - noBid, contracts)
+        }.minByOrNull { it.yesPriceCents }
     }
 }

@@ -33,7 +33,24 @@ data class AppSettings(
     val useDemoExchange: Boolean = false,
     /** A quote older than this is shown as expired with a Refresh button. */
     val quoteFreshSeconds: Int = 90,
+    // Long tab: very long combos of heavy favourites.
+    val longMinAskCents: Int = 94,
+    val longMinLegs: Int = 100,
+    val longMaxLegs: Int = 150,
+    val longMinEdgePp: Double = 0.0,
+    val longQuoteBudget: Int = 10,
 ) {
+    fun toLongSettings() = com.samer.comboscanner.engine.LongComboSettings(
+        minAskCents = longMinAskCents,
+        minFairProbability = longMinAskCents / 100.0,
+        minEdgePp = longMinEdgePp,
+        minLegs = longMinLegs,
+        maxLegs = longMaxLegs,
+        sports = sports,
+        stakesCents = listOf(stakeMinDollars, stakeMinDollars + 1, stakeMinDollars * 2).map { it * 100 }.distinct(),
+        quoteBudget = longQuoteBudget,
+    )
+
     fun toScanSettings() = ScanSettings(
         legFilter = LegFilter(minProbability, minEdgePp, sports),
         combo = ComboSettings(minLegs, maxLegs, poolSize, allowRelatedLegs),

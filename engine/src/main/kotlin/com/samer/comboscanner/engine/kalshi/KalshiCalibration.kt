@@ -23,7 +23,7 @@ data class SettledPoint(val ticker: String, val yesAskCents: Double?, val noAskC
  */
 class KalshiCalibration(
     private val client: KalshiClient,
-    private val samplesPerSeries: Int = 30,
+    private val samplesPerSeries: Int = 60,
     private val bandCents: Int = 4,
     private val cacheMs: Long = 24 * 3600_000L,
     private val clock: () -> Long = System::currentTimeMillis,

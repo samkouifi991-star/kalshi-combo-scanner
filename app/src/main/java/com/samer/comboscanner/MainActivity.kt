@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.LinearScale
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
@@ -48,6 +49,7 @@ import com.samer.comboscanner.ui.CombosScreen
 import com.samer.comboscanner.ui.HistoryScreen
 import com.samer.comboscanner.ui.LegDetailScreen
 import com.samer.comboscanner.ui.LocalNow
+import com.samer.comboscanner.ui.LongScreen
 import com.samer.comboscanner.ui.MainViewModel
 import com.samer.comboscanner.ui.MarketsScreen
 import com.samer.comboscanner.ui.OpenScreen
@@ -88,6 +90,7 @@ class MainActivity : ComponentActivity() {
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Markets("markets", "Markets", Icons.Filled.ShowChart),
     Combos("combos", "Combos", Icons.Filled.Layers),
+    LongCombos("long", "Long", Icons.Filled.LinearScale),
     Open("open", "Open", Icons.Filled.ReceiptLong),
     History("history", "History", Icons.Filled.History),
 }
@@ -160,6 +163,9 @@ private fun AppRoot(vm: MainViewModel, pending: Pair<String, Boolean>?, consumeP
                         onClearLeg = { nav.goTab(Tab.Combos.route) },
                     )
                 }
+                composable(Tab.LongCombos.route) {
+                    LongScreen(vm, onCombo = { nav.navigate(Routes.combo(it)) }, onActivity = { nav.navigate(Routes.ACTIVITY) })
+                }
                 composable(Tab.Open.route) { OpenScreen(vm, onTicket = { nav.navigate(Routes.ticket(it)) }) }
                 composable(Tab.History.route) { HistoryScreen(vm, onTicket = { nav.navigate(Routes.ticket(it)) }, onActivity = { nav.navigate(Routes.ACTIVITY) }) }
                 composable("leg/{id}") { e ->
@@ -192,6 +198,7 @@ private fun NavHostController.goTab(route: String) = navigate(route) {
 private fun titleFor(route: String) = when {
     route == "markets" -> "Markets"
     route.startsWith("combos") -> "Combos"
+    route == "long" -> "Long combos"
     route == "open" -> "Open"
     route == "history" -> "History"
     route.startsWith("leg/") -> "Leg pricing"

@@ -43,3 +43,11 @@ SKIP_ANDROID=1 ./gradlew :engine:test   # engine only, no Android SDK needed
 
 Kalshi's developer agreement limits API use to your own trading and doesn't allow sharing the data,
 so this app is for personal use.
+
+## Long tab
+
+Builds very long combos (100–150 legs by default) from legs priced 94¢ or higher that still have a
+positive estimated edge. Each card shows the estimated joint win probability, the average leg
+probability versus the break-even leg probability for the offered payout (`multiplier^(−1/n)`), and
+how the return changes if every leg is 1 point worse than estimated. Joint numbers assume independent
+legs, so same-game props make them optimistic.

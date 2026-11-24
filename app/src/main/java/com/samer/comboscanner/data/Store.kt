@@ -37,6 +37,9 @@ class Store(private val context: Context) {
     fun loadScan() = read("last_scan.json", ScanResult.serializer())
     fun saveScan(r: ScanResult) = write("last_scan.json", ScanResult.serializer(), r)
 
+    fun loadLongScan() = read("long_scan.json", ScanResult.serializer())
+    fun saveLongScan(r: ScanResult) = write("long_scan.json", ScanResult.serializer(), r)
+
     fun loadTickets() = read("tickets.json", ListSerializer(Ticket.serializer())) ?: emptyList()
     fun saveTickets(t: List<Ticket>) = write("tickets.json", ListSerializer(Ticket.serializer()), t)
 

@@ -3,6 +3,8 @@ package com.samer.comboscanner.data
 import android.content.Context
 import com.samer.comboscanner.engine.ComboResult
 import com.samer.comboscanner.engine.Demo
+import com.samer.comboscanner.engine.DemoLong
+import com.samer.comboscanner.engine.LongComboScanner
 import com.samer.comboscanner.engine.FairEstimator
 import com.samer.comboscanner.engine.FeeModel
 import com.samer.comboscanner.engine.Leg
@@ -58,6 +60,12 @@ class ScannerRepository(private val context: Context) {
     private val _scan = MutableStateFlow(store.loadScan())
     val scan: StateFlow<ScanResult?> = _scan.asStateFlow()
 
+    private val _longStatus = MutableStateFlow(ScanStatus(ScanPhase.IDLE, "Not scanned yet", updatedAt = System.currentTimeMillis()))
+    val longStatus: StateFlow<ScanStatus> = _longStatus.asStateFlow()
+
+    private val _longScan = MutableStateFlow(store.loadLongScan())
+    val longScan: StateFlow<ScanResult?> = _longScan.asStateFlow()
+
     private val _tickets = MutableStateFlow(store.loadTickets())
     val tickets: StateFlow<List<Ticket>> = _tickets.asStateFlow()
 
@@ -69,6 +77,7 @@ class ScannerRepository(private val context: Context) {
 
     init {
         _scan.value?.let { _status.value = it.finalStatus }
+        _longScan.value?.let { _longStatus.value = it.finalStatus }
     }
 
     fun hasKalshiKey() = store.kalshiCredentials() != null
@@ -88,7 +97,12 @@ class ScannerRepository(private val context: Context) {
 
     private var calibration: KalshiCalibration? = null
 
-    private data class Parts(val markets: MarketSource, val fair: FairEstimator, val quotes: QuoteProvider)
+    private data class Parts(
+        val markets: MarketSource,
+        val fair: FairEstimator,
+        val quotes: QuoteProvider,
+        val maxLegsFor: (String) -> Int? = { null },
+    )
 
     private fun parts(): Parts {
         val s = _settings.value
@@ -101,7 +115,32 @@ class ScannerRepository(private val context: Context) {
         val quotes: QuoteProvider = if (store.kalshiCredentials() != null) {
             KalshiRfqQuoteProvider(client, { markets.collections }, fees)
         } else NoKeyQuotes
-        return Parts(markets, fair, quotes)
+        return Parts(markets, fair, quotes) { t -> markets.collections[t]?.sizeMax }
+    }
+
+    private fun longParts(): Parts =
+        if (_settings.value.demoMode) Parts(DemoLong.markets(), DemoLong.fair(), Demo.quotes(fees)) else parts()
+
+    /** Long tab scan: 100+ leg combos from legs priced at the floor (94¢) or above. */
+    suspend fun scanLongNow(): ScanResult? = scanLock.withLock {
+        val p = longParts()
+        lastQuotes = p.quotes
+        val result = try {
+            LongComboScanner(p.markets, p.fair, p.quotes, p.maxLegsFor).scan(_settings.value.toLongSettings(), fees) { _longStatus.value = it }
+        } catch (e: Exception) {
+            _longStatus.value = ScanStatus(ScanPhase.FAILED, "Scan failed: ${friendly(e)}", updatedAt = System.currentTimeMillis())
+            return null
+        }
+        _longScan.value = result
+        store.saveLongScan(result)
+        calibration?.let { store.saveCalibration(it.snapshot()) }
+        recordActivity(result.combos.flatMap { it.quotes })
+        _longStatus.value = result.finalStatus
+        result
+    }
+
+    fun scanLongInBackground() {
+        scope.launch { runCatching { scanLongNow() } }
     }
 
     private var lastQuotes: QuoteProvider? = null
@@ -138,7 +177,8 @@ class ScannerRepository(private val context: Context) {
         store.saveActivity(_activity.value)
     }
 
-    fun combo(key: String): ComboResult? = _scan.value?.combos?.firstOrNull { it.candidate.key == key }
+    fun combo(key: String): ComboResult? =
+        _scan.value?.combos?.firstOrNull { it.candidate.key == key } ?: _longScan.value?.combos?.firstOrNull { it.candidate.key == key }
 
     /** Gets a fresh quote for the same legs, order and stake, and stores it with the combo. */
     suspend fun recheck(comboKey: String, entryOrder: List<String>, stakeCents: Int, purpose: QuotePurpose): Recheck {
@@ -157,7 +197,7 @@ class ScannerRepository(private val context: Context) {
 
     /** Records a payout the user saw in the Kalshi app for a stake. */
     fun addManualQuote(comboKey: String, entryOrder: List<String>, stakeCents: Int, payoutCents: Int) {
-        val contracts = payoutCents / 100
+        val contracts = payoutCents / 100.0
         val rec = QuoteRecord(
             id = UUID.randomUUID().toString(), comboKey = comboKey, entryOrder = entryOrder, comboMarketTicker = null,
             stakeCents = stakeCents, payoutCents = payoutCents, contracts = contracts,
@@ -172,6 +212,10 @@ class ScannerRepository(private val context: Context) {
             r?.copy(combos = r.combos.map { c -> if (c.candidate.key == q.comboKey) c.copy(quotes = c.quotes + q) else c })
         }
         _scan.value?.let { store.saveScan(it) }
+        _longScan.update { r ->
+            r?.copy(combos = r.combos.map { c -> if (c.candidate.key == q.comboKey) c.copy(quotes = c.quotes + q) else c })
+        }
+        _longScan.value?.let { store.saveLongScan(it) }
         recordActivity(listOf(q))
     }
 
@@ -233,10 +277,10 @@ class ScannerRepository(private val context: Context) {
             if (id in known) return@mapNotNull null
             val time = f.s("created_time")?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() } ?: return@mapNotNull null
             if (time < since) return@mapNotNull null
-            val count = (f.s("count_fp") ?: f.s("count"))?.toDoubleOrNull()?.toInt() ?: return@mapNotNull null
+            val count = (f.s("count_fp") ?: f.s("count"))?.toDoubleOrNull() ?: return@mapNotNull null
             val price = f.s("yes_price_dollars")?.toDoubleOrNull()?.times(100) ?: f.s("yes_price")?.toDoubleOrNull() ?: return@mapNotNull null
             val cost = kotlin.math.ceil(count * price).toInt() + fees.feeCents(count, price)
-            Fill(id, cost, count * 100, time, FillSource.CONFIRMED)
+            Fill(id, cost, kotlin.math.round(count * 100).toInt(), time, FillSource.CONFIRMED)
         }
         if (newFills.isEmpty()) return t
         // A confirmed fill replaces the manual record it most likely corresponds to.
